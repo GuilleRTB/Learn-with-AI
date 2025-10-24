@@ -1,0 +1,33 @@
+# Requirements runtime pour Learn-with-AI
+# Ces paquets correspondent aux dépendances indiquées dans `pyproject.toml`
+# et aux imports trouvés dans le code source.
+
+groq>=0.4.0
+python-dotenv>=1.0.0
+requests>=2.31.0
+
+# Toga (GUI) — la version minimale recommandée correspond à celle utilisée
+# dans la configuration Briefcase (0.5.x). Selon la plateforme, Briefcase
+# sélectionnera la backend appropriée (toga-gtk, toga-cocoa, toga-winforms, ...).
+toga~=0.5.0
+
+# PyGObject peut être nécessaire sur Linux pour la backend GTK (souvent
+# disponible via les paquets système). Pinning plus strict visible dans
+# `pyproject.toml` : pygobject < 3.52.1 si besoin.
+pygobject<3.52.1
+
+# Outil de packaging / déploiement (BeeWare). Indispensable pour créer
+# des builds natives (macOS, Windows, Linux, mobile, web).
+briefcase>=0.3.25
+
+# Dependencies utiles pour le développement / tests
+# Installez-les avec `pip install -r requirements-dev.txt` (préférer un venv)
+
+pytest>=7.0.0
+pytest-cov>=4.0.0
+black>=23.0.0
+isort>=5.0.0
+mypy>=0.9.0
+
+# Optional: outils de packaging/CI
+tox>=4.0.0
