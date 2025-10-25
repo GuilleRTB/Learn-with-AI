@@ -6,6 +6,10 @@ groq>=0.4.0
 python-dotenv>=1.0.0
 requests>=2.31.0
 
+# Audio dependencies
+pyaudio>=0.2.11
+wave
+
 # Toga (GUI) — la version minimale recommandée correspond à celle utilisée
 # dans la configuration Briefcase (0.5.x). Selon la plateforme, Briefcase
 # sélectionnera la backend appropriée (toga-gtk, toga-cocoa, toga-winforms, ...).
