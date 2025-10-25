@@ -26,31 +26,90 @@ class AudioService:
         self.recording_thread = None
         self.recording_start_time = None
         
-        # Audio configuration
-        self.chunk = 1024  # Record in chunks of 1024 samples
-        self.sample_format = pyaudio.paInt16 if PYAUDIO_AVAILABLE else None  # 16 bits per sample
-        self.channels = 2
-        self.fs = 44100  # Record at 44100 samples per second
+        # Audio configuration with auto-detection
+        self.chunk = 1024
+        self.sample_format = pyaudio.paInt16 if PYAUDIO_AVAILABLE else None
+        self.channels = 1  # Mono pour la plupart des micros intégrés
         
         # Create recordings directory
         self.recordings_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'recordings')
         os.makedirs(self.recordings_dir, exist_ok=True)
         
-        # Initialize PyAudio
+        # Initialize PyAudio and detect best sample rate
         self._initialize_audio()
         
     def _initialize_audio(self):
-        """Initialize PyAudio"""
+        """Initialize PyAudio and detect best sample rate"""
         if not PYAUDIO_AVAILABLE:
             print("❌ PyAudio not available. Audio recording disabled.")
             return
             
         try:
             self.audio = pyaudio.PyAudio()
-            print("✅ Audio service initialized successfully")
+            # Detect best sample rate after initializing PyAudio
+            self.fs = self._detect_best_sample_rate()
+            print(f"✅ Audio service initialized with sample rate: {self.fs} Hz")
         except Exception as e:
             print(f"❌ Error initializing audio: {e}")
             self.audio = None
+            self.fs = 44100  # Fallback
+    
+    def _detect_best_sample_rate(self):
+        """Détecte le meilleur taux d'échantillonnage supporté par le microphone"""
+        if not self.audio:
+            return 44100  # Fallback si PyAudio n'est pas disponible
+        
+        try:
+            # Obtenir le périphérique d'entrée par défaut
+            default_device = self.audio.get_default_input_device_info()
+            device_index = default_device['index']
+            
+            print(f"🎤 Testing audio device: {default_device['name']}")
+            
+            # Tester différents taux d'échantillonnage par ordre de préférence
+            test_rates = [44100, 48000, 22050, 16000, 8000]
+            
+            for rate in test_rates:
+                try:
+                    # Tester si ce taux est supporté
+                    if self.audio.is_format_supported(
+                        rate=rate,
+                        input_device=device_index,
+                        input_channels=self.channels,
+                        input_format=self.sample_format
+                    ):
+                        print(f"✓ Sample rate {rate} Hz is supported")
+                        return rate
+                except Exception as e:
+                    print(f"✗ Sample rate {rate} Hz not supported: {e}")
+                    continue
+            
+            # Si aucun taux standard ne fonctionne, utiliser le taux par défaut
+            default_rate = int(default_device['defaultSampleRate'])
+            print(f"⚠️ Using device default sample rate: {default_rate} Hz")
+            return default_rate
+            
+        except Exception as e:
+            print(f"❌ Error detecting sample rate: {e}")
+            return 44100  # Fallback
+    
+    def _get_best_input_device(self):
+        """Trouve le meilleur périphérique d'entrée disponible"""
+        if not self.audio:
+            return None
+        
+        try:
+            # Essayer le périphérique par défaut d'abord
+            default_device = self.audio.get_default_input_device_info()
+            return default_device['index']
+        except:
+            # Si pas de périphérique par défaut, chercher le premier avec entrée
+            for i in range(self.audio.get_device_count()):
+                device_info = self.audio.get_device_info_by_index(i)
+                if device_info['maxInputChannels'] > 0:
+                    return i
+            return None
+            self.fs = 44100  # Fallback
             
     def start_recording(self):
         """Start recording audio from microphone"""
@@ -63,13 +122,20 @@ class AudioService:
             return False
             
         try:
-            # Start recording
+            # Get best input device
+            input_device = self._get_best_input_device()
+            if input_device is None:
+                print("❌ No input device available")
+                return False
+            
+            # Start recording with auto-detected settings
             self.stream = self.audio.open(
                 format=self.sample_format,
                 channels=self.channels,
                 rate=self.fs,
                 frames_per_buffer=self.chunk,
-                input=True
+                input=True,
+                input_device_index=input_device
             )
             
             self.frames = []
@@ -81,7 +147,7 @@ class AudioService:
             self.recording_thread.daemon = True
             self.recording_thread.start()
             
-            print("🎤 Recording started...")
+            print(f"🔴 Recording started with {self.fs} Hz, {self.channels} channel(s)")
             return True
             
         except Exception as e:
@@ -93,7 +159,7 @@ class AudioService:
         """Internal method to record audio in a separate thread"""
         try:
             while self.is_recording:
-                data = self.stream.read(self.chunk)
+                data = self.stream.read(self.chunk, exception_on_overflow=False)
                 self.frames.append(data)
         except Exception as e:
             print(f"❌ Error during recording: {e}")
